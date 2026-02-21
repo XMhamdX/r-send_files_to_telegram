@@ -46,16 +46,17 @@ def parse_arabic_number(text):
     # 1. البحث عن تشكيلة (آحاد + عشرات) مثل "السادس والأربعون"
     for unit_word, unit_val in sorted(UNITS.items(), key=lambda x: len(x[0]), reverse=True):
         for ten_word, ten_val in sorted(TENS.items(), key=lambda x: len(x[0]), reverse=True):
-            # التأكد من عدم تجاوز الآحاد للرقم 9 في التراكيب لأن 11 وما فوق لا تركب مع "و"
             if unit_val > 9:
                 continue
             
             # نمط: "السادس والأربعون" أو "سادس والأربعين" أو "سادس واربعين"
+            # تم إضافة مسافات اختيارية حول الواو للتعامل مع "الحادية والعشرون" بشكل صحيح
             pattern1 = f"{unit_word} و {ten_word}"
             pattern2 = f"{unit_word} وال{ten_word}"
             pattern3 = f"{unit_word} و{ten_word}"
+            pattern4 = f"{unit_word}وال{ten_word}" # مثل: الحاديةوالعشرون لو كانت متصلة بسبب التشكيل
             
-            if pattern1 in text or pattern2 in text or pattern3 in text:
+            if any(p in text for p in [pattern1, pattern2, pattern3, pattern4]):
                 return unit_val + ten_val
 
     # 2. إذا لم يكن تركيباً، نبحث ككلمة مفردة في كل القاموس
