@@ -86,6 +86,33 @@ def parse_telegram_link(link_or_id, default_topic=None):
 
 
 
+# ----------------------------
+def build_caption(base_path, file_path, filename):
+    """
+    بناء وصف هيكلي (Caption) للملف بناءً على مكانه في المجلدات الفرعية.
+    يضيف مسافات متدرجة لكل مستوى مجلد ليظهر الملف بشكل شجري.
+    """
+    rel_path = os.path.relpath(file_path, base_path)
+    rel_dir = os.path.dirname(rel_path)
+    
+    # إذا كان الملف في المجلد الرئيسي مباشرة
+    if rel_dir == "" or rel_dir == ".":
+        return filename
+        
+    parts = rel_dir.split(os.sep)
+    caption_lines = []
+    
+    indent = ""
+    for part in parts:
+        caption_lines.append(f"{indent}{part} /")
+        indent += "    " # 4 مسافات للمستوى التالي
+        
+    # سطر فارغ قبل اسم الملف كما طلب المستخدم
+    caption_lines.append("")
+    # اسم الملف مع الإزاحة النهائية
+    caption_lines.append(f"{indent}{filename}")
+    
+    return "\n".join(caption_lines)
 
 # ----------------- Main flow -----------------
 async def main(session_name, target, folder_path, topic_id=None):
@@ -180,34 +207,65 @@ async def main(session_name, target, folder_path, topic_id=None):
     os.makedirs(temp_dir, exist_ok=True)
 
     # امتدادات الملفات المدعومة
-    VIDEO_EXTENSIONS = (".mp4", ".mkv", ".mov", ".avi")
+    VIDEO_EXTENSIONS = (".mp4", ".mkv", ".mov", ".avi", ".ts", ".webm", ".flv", ".wmv", ".mpeg", ".mpg", ".m4v", ".3gp")
     IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".webp")
-    SUPPORTED_EXTENSIONS = VIDEO_EXTENSIONS + IMAGE_EXTENSIONS
+    DOC_EXTENSIONS = (".pdf", ".doc", ".docx", ".ppt", ".pptx", ".zip", ".rar", ".txt", ".csv", ".xlsx")
+    SUPPORTED_EXTENSIONS = VIDEO_EXTENSIONS + IMAGE_EXTENSIONS + DOC_EXTENSIONS
     
-    files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(SUPPORTED_EXTENSIONS)], key=smart_sort_key)
-    if not files:
-        print("⚠️ لا توجد ملفات فيديو أو صور في المجلد.")
+    # البحث في المجلد الرئيسي وجميع المجلدات الفرعية
+    files_to_upload = []
+    for root, dirs, files_in_dir in os.walk(folder_path):
+        # استبعاد المجلد المؤقت من البحث
+        if ".temp_opt" in dirs:
+            dirs.remove(".temp_opt")
+            
+        rel_root = os.path.relpath(root, folder_path)
+        dir_name_display = rel_root if rel_root != '.' else 'المجلد الرئيسي'
+        print(f"🔍 فحص المجلد: {dir_name_display}")
+            
+        # فرز المجلدات الفرعية ذكياً لضمان دخولها بالترتيب الصحيح
+        dirs.sort(key=smart_sort_key)
+        # فرز الملفات في المسار الحالي
+        files_in_dir.sort(key=smart_sort_key)
+        
+        for f in files_in_dir:
+            if f.lower().endswith(SUPPORTED_EXTENSIONS):
+                files_to_upload.append(os.path.join(root, f))
+                
+    if not files_to_upload:
+        print("⚠️ لا توجد ملفات فيديو أو صور في المجلد أو المجلدات الفرعية.")
         await client.disconnect()
         return
 
-    for fname in files:
-        fpath = os.path.join(folder_path, fname)
+    for fpath in files_to_upload:
+        fname = os.path.basename(fpath)
         if fpath in uploaded:
             print(f"⏭️ {fname} — مُسجّل سابقًا، تخطّي.")
             continue
 
         print("\n------------------------------")
+        
+        # استخراج الوصف الهيكلي الشجري
+        custom_caption = build_caption(folder_path, fpath, fname)
+        
         print("📁 المعالجة:", fname)
         
         # تحديد نوع الملف
         ext = os.path.splitext(fname)[1].lower()
-        is_image = ext in IMAGE_EXTENSIONS
+        is_video = ext in VIDEO_EXTENSIONS
         
-        if is_image:
+        if ext in IMAGE_EXTENSIONS:
+            file_category = "image"
             # الصور لا تحتاج معالجة، يتم إرسالها مباشرة
             print(f"🖼️ صورة تم اكتشافها — سيتم الإرسال مباشرة.")
             to_send = fpath
-        else:
+        elif ext in DOC_EXTENSIONS:
+            file_category = "document"
+            # المستندات ترسل مباشرة دون ترميز
+            print(f"📄 مستند تم اكتشافه — سيتم الإرسال مباشرة.")
+            to_send = fpath
+        elif is_video:
+            file_category = "video"
             # معالجة الفيديو
             vcodec, acodec, ext = probe_codecs(fpath)
             print(f" ▶ حزمة: ext={ext} video={vcodec} audio={acodec}")
@@ -234,7 +292,7 @@ async def main(session_name, target, folder_path, topic_id=None):
         # send
         try:
             print("⬆️ بدء الرفع إلى تيليجرام...")
-            await send_file_tele(client, entity, to_send, caption=fname, is_image=is_image, reply_to=topic_id)
+            await send_file_tele(client, entity, to_send, caption=custom_caption, file_category=file_category, reply_to=topic_id)
             print("✅ تم الإرسال:", fname)
         except FloodWaitError as e:
             print(f"⏱️ FloodWait — الانتظار {e.seconds}s")

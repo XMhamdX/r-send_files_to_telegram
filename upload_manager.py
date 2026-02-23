@@ -79,10 +79,11 @@ async def fast_upload(client, file_path, progress_callback=None):
             md5_checksum='' # ليس ضرورياً
         )
 
-async def send_file_tele(client, entity, fpath, caption=None, is_image=False, reply_to=None):
-    """إرسال ملف باستخدام الرفع المتوازي مع دعم الصور المصغرة والمدة الزمنية"""
+async def send_file_tele(client, entity, fpath, caption=None, file_category="video", reply_to=None):
+    """إرسال ملف باستخدام الرفع المتوازي مع دعم الصور المصغرة والمدة الزمنية والمستندات"""
     file_size = os.path.getsize(fpath)
-    file_type = "صورة" if is_image else "فيديو"
+    type_names = {"video": "فيديو", "image": "صورة", "document": "مستند"}
+    file_type = type_names.get(file_category, "ملف")
     print(f"🚀 بدء الرفع السريع (Parallel Upload): {os.path.basename(fpath)} ({file_size/1024/1024:.2f} MB) [{file_type}]")
     
     start = time.time()
@@ -106,7 +107,7 @@ async def send_file_tele(client, entity, fpath, caption=None, is_image=False, re
     # معالجة بيانات الفيديو الإضافية (صورة مصغرة ومدة)
     attributes = []
     thumb_path = None
-    if not is_image:
+    if file_category == "video":
         duration = get_video_duration(fpath)
         attributes.append(DocumentAttributeVideo(
             duration=duration,
@@ -125,8 +126,8 @@ async def send_file_tele(client, entity, fpath, caption=None, is_image=False, re
             caption=caption,
             thumb=thumb_path, # إضافة الغلاف
             attributes=attributes if attributes else None, # إضافة المدة
-            supports_streaming=True if not is_image else False,
-            force_document=False, # اجعلها فيديو/صورة لو أمكن
+            supports_streaming=True if file_category == "video" else False,
+            force_document=True if file_category == "document" else False, # إرسال المستندات كملف
             reply_to=reply_to  # للإرسال إلى توبيك معين
         )
     finally:
