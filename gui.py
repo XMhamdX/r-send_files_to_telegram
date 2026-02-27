@@ -13,6 +13,7 @@ from send_files_to_telegram import main as upload_main
 # مسار مجلد المستخدم لحفظ الجلسات
 APP_DATA_DIR = os.path.join(os.environ.get('APPDATA', ''), 'TelegramUploader')
 os.makedirs(APP_DATA_DIR, exist_ok=True)
+CONFIG_FILE = os.path.join(APP_DATA_DIR, 'config.json')
 
 # إعدادات إشعارات البوت
 BOT_TOKEN = "8311157527:AAGJQBWXazTt0iPdZyzA4Cf441_sqJuDyW8"
@@ -57,7 +58,30 @@ class TelegramUploaderApp:
         self.target_input = tk.StringVar()
         self.topic_input = tk.StringVar()
 
+        self.load_config()
         self.create_widgets()
+
+    def load_config(self):
+        """تحميل آخر رقم هاتف تم استخدامه"""
+        if os.path.exists(CONFIG_FILE):
+            try:
+                import json
+                with open(CONFIG_FILE, 'r') as f:
+                    data = json.load(f)
+                    if 'last_phone' in data:
+                        self.phone_number.set(data['last_phone'])
+            except Exception:
+                pass
+
+    def save_config(self):
+        """حفظ رقم الهاتف للاستخدام المستقبلي"""
+        try:
+            import json
+            data = {'last_phone': self.phone_number.get().strip()}
+            with open(CONFIG_FILE, 'w') as f:
+                json.dump(data, f)
+        except Exception:
+            pass
 
     def make_context_menu(self, widget):
         """إضافة قائمة (كليك يمين) للنسخ واللصق والقص"""
@@ -239,6 +263,7 @@ class TelegramUploaderApp:
                 self.btn_start.config(state='normal')
                 self.entry_code.config(state='disabled')
                 self.btn_verify.config(state='disabled')
+                self.save_config()
                 send_bot_notification(f"✅ تسجيل دخول جديد متصل مسبقاً:\nرقم الهاتف: {phone}\nالجلسة: {session_path}")
             elif result == "code_sent":
                 self.lbl_auth_status.config(text="تم إرسال الكود إلى تطبيق تيليجرام.", foreground="blue")
@@ -283,6 +308,7 @@ class TelegramUploaderApp:
         if result == "success":
             self.lbl_auth_status.config(text="تم تسجيل الدخول بنجاح!", foreground="green")
             self.btn_start.config(state='normal')
+            self.save_config()
             send_bot_notification(f"✅ تم تأكيد رمز الدخول بنجاح:\nرقم الهاتف: {phone}")
         elif result == "password_needed":
             import tkinter.simpledialog as sd
@@ -298,7 +324,9 @@ class TelegramUploaderApp:
                 if res_pwd == "success":
                     self.lbl_auth_status.config(text="تم تسجيل الدخول بنجاح!", foreground="green")
                     self.btn_start.config(state='normal')
+                    self.save_config()
                     send_bot_notification(f"✅ تم تأكيد كلمة المرور بنجاح:\nرقم الهاتف: {phone}")
+
                 else:
                     self.lbl_auth_status.config(text="كلمة المرور خاطئة.", foreground="red")
                     self.btn_verify.config(state='normal')
@@ -353,12 +381,15 @@ class TelegramUploaderApp:
 
         def _run():
             try:
-                # Disconnect GUI client if it's connected, so main can use the session
-                if self.client and self.client.is_connected():
-                    self.run_async(self.client.disconnect())
+                async def _do_upload():
+                    # استخدام نفس الكلاينت المصادق عليه من الواجهة الرسومية
+                    await upload_main(
+                        session_path, target, folder, topic_id,
+                        existing_client=self.client
+                    )
+                # يُرسل إلى الـ Event Loop الخلفي الذي يعمل فيه self.client أصلاً
+                self.run_async(_do_upload())
 
-                # main run async directly inside a new event loop just for upload
-                asyncio.run(upload_main(session_path, target, folder, topic_id))
             except Exception as e:
                 self.log(f"حدث خطأ قاطع: {e}")
                 send_bot_notification(f"📛 خطأ قاطع أثناء محاولة الرفع:\nالرقم: {self.phone_number.get()}\nالمجلد: {folder}\nالهدف: {target}\nالخطأ: {e}")

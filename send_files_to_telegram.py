@@ -115,7 +115,7 @@ def build_caption(base_path, file_path, filename):
     return "\n".join(caption_lines)
 
 # ----------------- Main flow -----------------
-async def main(session_name, target, folder_path, topic_id=None):
+async def main(session_name, target, folder_path, topic_id=None, loop=None, existing_client=None):
     # تحليل الرابط أو المعرّف
     parsed_target, parsed_topic = parse_telegram_link(target, topic_id)
     
@@ -130,7 +130,7 @@ async def main(session_name, target, folder_path, topic_id=None):
     
     ok, missing = check_ffmpeg()
     if not ok:
-        print(f"❌ ffmpeg/ffprobe غير مُثبت أو غير موجود في PATH (مفقود: {missing}). رَكِّب FFmpeg وأعد المحاولة.")
+        print(f"❌ ffmpeg/ffprobe غير مُثبت أو غير موجود في PATH (مفقود: {missing}). رَكِّب FFmpeg وأعد المحاولة.")
         return
 
     if not os.path.isdir(folder_path):
@@ -147,10 +147,18 @@ async def main(session_name, target, folder_path, topic_id=None):
     else:
         uploaded = {}
 
-    client = TelegramClient(session_name, API_ID, API_HASH)
-    await client.start()
+    # إذا تم تمرير كلاينت موجود (من الواجهة الرسومية)، نستخدمه مباشرةً
+    if existing_client is not None:
+        client = existing_client
+        if not client.is_connected():
+            await client.connect()
+        owned_client = False  # لا نملكه، لا نقفل الاتصال عند الانتهاء
+    else:
+        client = TelegramClient(session_name, API_ID, API_HASH, loop=loop)
+        await client.start()
+        owned_client = True
 
-    # resolve target entity
+
     try:
         # Convert string ID to int if it looks like an ID
         if isinstance(target, str) and (target.startswith("-100") or target.lstrip('-').isdigit()):
@@ -321,8 +329,10 @@ async def main(session_name, target, folder_path, topic_id=None):
             except Exception:
                 pass
 
-    await client.disconnect()
+    if owned_client:
+        await client.disconnect()
     # حاول حذف المجلد المؤقت إن كان فارغًا
+
     try:
         if os.path.isdir(temp_dir) and not os.listdir(temp_dir):
             os.rmdir(temp_dir)
