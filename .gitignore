@@ -1,5 +1,10 @@
 /install_dependencies.bat
-/mysession.session
-/mysession.session-journal
+/*.session
+/*.session-journal
 /test_sort.py
-/__pycache__
+/__pycache__/
+/build/
+/dist/
+/*.spec
+/.temp_opt/
+/.gitignore

@@ -212,6 +212,7 @@ async def main(session_name, target, folder_path, topic_id=None):
     DOC_EXTENSIONS = (".pdf", ".doc", ".docx", ".ppt", ".pptx", ".zip", ".rar", ".txt", ".csv", ".xlsx")
     SUPPORTED_EXTENSIONS = VIDEO_EXTENSIONS + IMAGE_EXTENSIONS + DOC_EXTENSIONS
     
+
     # البحث في المجلد الرئيسي وجميع المجلدات الفرعية
     files_to_upload = []
     for root, dirs, files_in_dir in os.walk(folder_path):
@@ -329,7 +330,7 @@ async def main(session_name, target, folder_path, topic_id=None):
         pass
     print("\n✅ انتهت المعالجة.")
 
-# CLI
+# CLI.
 if __name__ == "__main__":
     p = argparse.ArgumentParser(
         description="رفع الصور والفيديوهات إلى تيليجرام بسرعة عالية",

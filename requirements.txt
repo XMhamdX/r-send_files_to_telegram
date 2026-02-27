@@ -1,2 +1,4 @@
 telethon
 cryptg
+pyinstaller
+# FFmpeg required (System tool, not a Python package)
