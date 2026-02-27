@@ -208,7 +208,8 @@ async def main(session_name, target, folder_path, topic_id=None, loop=None, exis
             
     except Exception as e:
         print("❌ خطأ في الحصول على الهدف:", e)
-        await client.disconnect()
+        if owned_client:
+            await client.disconnect()
         return
 
     temp_dir = os.path.join(folder_path, ".temp_opt")
@@ -234,16 +235,29 @@ async def main(session_name, target, folder_path, topic_id=None, loop=None, exis
             
         # فرز المجلدات الفرعية ذكياً لضمان دخولها بالترتيب الصحيح
         dirs.sort(key=smart_sort_key)
-        # فرز الملفات في المسار الحالي
-        files_in_dir.sort(key=smart_sort_key)
-        
+        # دالة فرز مخصصة لتحديد الأولوية:
+        # الملفات المُرقمة: يتم ترتيبها حسب (اسم السلسلة، الرقم، ثم تاريخ الإنشاء)
+        # الملفات غير المُرقمة: يتم ترتيبها فوراً حسب تاريخ الإنشاء متجاهلين الترتيب الأبجدي لاسمه
+        def custom_sort(f):
+            base_name, num = smart_sort_key(f)
+            file_time = os.path.getctime(os.path.join(root, f))
+            if num != float('inf'):
+                # ملف مُرقم: أولويته (0، اسم السلسلة، الرقم، الوقت)
+                return (0, base_name, num, file_time)
+            else:
+                # ملف غير مُرقم: أولويته (1، الوقت، ثم الاسم لتفادي أي تطابق مستحيل)
+                return (1, "", float('inf'), file_time)
+                
+        # تطبيق الفرز
+        files_in_dir.sort(key=custom_sort)
         for f in files_in_dir:
             if f.lower().endswith(SUPPORTED_EXTENSIONS):
                 files_to_upload.append(os.path.join(root, f))
                 
     if not files_to_upload:
         print("⚠️ لا توجد ملفات فيديو أو صور في المجلد أو المجلدات الفرعية.")
-        await client.disconnect()
+        if owned_client:
+            await client.disconnect()
         return
 
     for fpath in files_to_upload:

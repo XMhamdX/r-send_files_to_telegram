@@ -1,4 +1,8 @@
 telethon
 cryptg
+customtkinter
+packaging
 pyinstaller
+arabic-reshaper
+python-bidi
 # FFmpeg required (System tool, not a Python package)

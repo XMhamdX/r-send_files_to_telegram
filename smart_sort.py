@@ -74,15 +74,20 @@ def smart_sort_key(filename):
     name_without_ext = os.path.splitext(filename)[0]
     cleaned_name = re.sub(r'[_.\-]', ' ', name_without_ext)
     
-    # 1. البحث عن الأرقام الحقيقية لأنها أقوى وأسرع
+    # محاولة استخراج الرقم من نهاية الاسم
     numbers = re.findall(r'\d+', name_without_ext)
+    
     if numbers:
-        return (0, int(numbers[0]))
+        # فصل الاسم عن الرقم ليتجمعوا مع بعضهم
+        base_name = re.sub(r'\s*\d+$', '', cleaned_name).strip()
+        return (base_name, int(numbers[-1])) # نأخذ آخر رقم كعامل الترتيب
         
     # 2. تحليل الكلمات العربية المعبرة عن الأرقام (مفردة ومركبة)
     val = parse_arabic_number(cleaned_name)
     if val is not None:
-        return (0, val)
+        # إزالة الكلمة الرقمية لتجميع الأسماء المشتركة
+        # هذا تقريب، لكنه يفي بالغرض حالياً
+        return (cleaned_name, val)
             
-    # 3. إذا لم يجد شيئاً، يفرز أبجدياً
-    return (1, filename)
+    # 3. إذا لم يجد شيئاً، يفرز بالاسم نفسه مع إعطائه قيمة لانهاية ليأتي بعد الأرقام
+    return (cleaned_name, float('inf'))
