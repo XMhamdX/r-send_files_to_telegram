@@ -3,42 +3,57 @@ from datetime import datetime
 from smart_sort import smart_sort_key
 
 # Mock creation times (in minutes elapsed today for ease)
-# Format based on the user screenshot: File Name -> Time Given
 files_and_times = {
-    "المعدات الخاصة بالتصوير 1.mp4": 12*60 + 36,
-    "المعدات الخاصة بالتصوير 2.mp4": 12*60 + 37,
-    "المعدات الخاصة بالتصوير 3.mp4": 12*60 + 37,
-    "المعدات الخاصة بالتصوير 4.mp4": 12*60 + 37,
-    "المهارات المطلوبة لحضور التصوير 1.mp4": 12*60 + 29,
-    "المهارات المطلوبة لحضور التصوير 2.mp4": 12*60 + 29,
-    "تفريغ و تحليل مشاهد السيناريو 1.mp4": 12*60 + 31,
-    "تفريغ و تحليل مشاهد السيناريو 2.mp4": 12*60 + 31,
-    "قائمة مهام التصوير 2.mp4": 12*60 + 33,
-    "أسئلة للمخرج.mp4": 12*60 + 32,
-    "التطبيقات الخاصة بالتصوير.mp4": 12*60 + 38,
-    "الرؤية.mp4": 12*60 + 30,
-    "المهام.mp4": 12*60 + 31,
-    "تحديد المهام والتخطيط.mp4": 12*60 + 32,
-    "تعريف عام.mp4": 12*60 + 28,
+    # المجموعة الأولى: صدارة مطلقة (typ = -1) - رغم وقتها المتأخر
+    "تعريف عام.mp4": 1100,  
+    "فيديو تعريفي.mp4": 1028,
+    
+    # المجموعة الثانية: ملفات حرة بدون أرقام (typ = 0)
+    "الرؤية.mp4": 1030,
+    "المهام.mp4": 1031,
+    "أسئلة للمخرج.mp4": 1032,
+    "تحديد المهام والتخطيط.mp4": 1032,
+    "التطبيقات الخاصة بالتصوير.mp4": 1038,
+    "ملف عام.mp4": 1033, 
+    
+    # المجموعة الثالثة: سلاسل مبدوءة برقم (typ = 1)
+    "1.الدرس.mp4": 150,
+    "2.نظرة عامة على البر.mp4": 140,
+    "3.ضبط خصائص البرنا.mp4": 160,
+    "10.تثبيت الإطار.mp4": 100,
+
+    # المجموعة الرابعة: سلاسل منتهية برقم (typ = 1)
+    "المعدات الخاصة بالتصوير 1.mp4": 1036,
+    "المعدات الخاصة بالتصوير 2.mp4": 1037,
+    "تفريغ و تحليل مشاهد السيناريو 1.mp4": 1031,
+    "تفريغ و تحليل مشاهد السيناريو 2.mp4": 1031,
+    "قائمة مهام التصوير 2.mp4": 1033, 
+    
+    # المجموعة الخامسة: كلمات عربية (typ = 1)
+    "مقدمة كورس التصوير.mp4": 500, # كلمة "مقدمة" تعتبر رقم 1
+    "الدرس الثاني.mp4": 501,
 }
 
-# The custom sorting logic deployed in send_files_to_telegram.py
-def custom_sort(f):
-    base_name, num = smart_sort_key(f)
-    file_time = files_and_times[f]
+def run_test(test_name):
+    def custom_sort(f):
+        priority, natsort_key = smart_sort_key(f)
+        file_time = files_and_times[f]
+        
+        return (priority, natsort_key, file_time)
+
+    files = list(files_and_times.keys())
+    files.sort(key=custom_sort)
     
-    if num != float('inf'):
-        # Numbered series: priority (0, base_name, number, file_time)
-        return (0, base_name, num, file_time)
-    else:
-        # Non-numbered files: priority (1, file_time, inf) 
-        return (1, "", float('inf'), file_time)
+    print(f"\n=== الترتيب النهائي - {test_name} ===")
+    for i, f in enumerate(files, 1):
+        time_val = files_and_times[f]
+        priority, natsort_key = smart_sort_key(f)
+        
+        if priority == -1: tag = " [الصدارة المطلقة]"
+        elif priority == 0: tag = " [ملف حر - بدون أرقام]"
+        else: tag = " [تسلسل رقمي - Natural Sort]"
+        
+        print(f"{i:02d}. [Time: {time_val}] {f}{tag}")
+    print("==============================================\n")
 
-files = list(files_and_times.keys())
-files.sort(key=custom_sort)
-
-print("\n=== الترتيب النهائي كما سيقوم به البرنامج ===")
-for i, f in enumerate(files, 1):
-    time_str = f"{files_and_times[f] // 60:02d}:{files_and_times[f] % 60:02d}"
-    print(f"{i:02d}. [{time_str}] {f}")
-print("==============================================\n")
+run_test("التسلسل الرقمي المرجعي المحسن (Tuple Sorting)")

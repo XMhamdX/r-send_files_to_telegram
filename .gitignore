@@ -6,5 +6,8 @@
 /build/
 /dist/
 /*.spec
-/.temp_opt/
+/.temp_opt
 /.gitignore
+/test_sort.py
+/test_sorting.py
+/test.session

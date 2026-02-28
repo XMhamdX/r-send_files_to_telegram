@@ -115,7 +115,7 @@ def build_caption(base_path, file_path, filename):
     return "\n".join(caption_lines)
 
 # ----------------- Main flow -----------------
-async def main(session_name, target, folder_path, topic_id=None, loop=None, existing_client=None):
+async def main(session_name, target, folder_path, topic_id=None, loop=None, existing_client=None, series_preferences=None):
     # تحليل الرابط أو المعرّف
     parsed_target, parsed_topic = parse_telegram_link(target, topic_id)
     
@@ -224,6 +224,7 @@ async def main(session_name, target, folder_path, topic_id=None, loop=None, exis
 
     # البحث في المجلد الرئيسي وجميع المجلدات الفرعية
     files_to_upload = []
+    
     for root, dirs, files_in_dir in os.walk(folder_path):
         # استبعاد المجلد المؤقت من البحث
         if ".temp_opt" in dirs:
@@ -235,20 +236,15 @@ async def main(session_name, target, folder_path, topic_id=None, loop=None, exis
             
         # فرز المجلدات الفرعية ذكياً لضمان دخولها بالترتيب الصحيح
         dirs.sort(key=smart_sort_key)
-        # دالة فرز مخصصة لتحديد الأولوية:
-        # الملفات المُرقمة: يتم ترتيبها حسب (اسم السلسلة، الرقم، ثم تاريخ الإنشاء)
-        # الملفات غير المُرقمة: يتم ترتيبها فوراً حسب تاريخ الإنشاء متجاهلين الترتيب الأبجدي لاسمه
+        
         def custom_sort(f):
-            base_name, num = smart_sort_key(f)
+            priority, natsort_key = smart_sort_key(f)
             file_time = os.path.getctime(os.path.join(root, f))
-            if num != float('inf'):
-                # ملف مُرقم: أولويته (0، اسم السلسلة، الرقم، الوقت)
-                return (0, base_name, num, file_time)
-            else:
-                # ملف غير مُرقم: أولويته (1، الوقت، ثم الاسم لتفادي أي تطابق مستحيل)
-                return (1, "", float('inf'), file_time)
+            
+            # الفرقة الأولى للصدارة، ثم الترتيب الطبيعي (النصوص والأرقام)، ثم وقت الإنشاء
+            return (priority, natsort_key, file_time)
                 
-        # تطبيق الفرز
+        # تطبيق الفرز على الملفات داخل هذا المجلد فقط وإضافتها لطابور الرفع
         files_in_dir.sort(key=custom_sort)
         for f in files_in_dir:
             if f.lower().endswith(SUPPORTED_EXTENSIONS):

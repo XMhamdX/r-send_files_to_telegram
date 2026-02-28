@@ -213,6 +213,8 @@ class TelegramUploaderApp:
 
         self.update_target_ui() # تحديث الحالة الأولية
 
+        self.update_target_ui() # تحديث الحالة الأولية
+
 
         # --- زر البدء ---
         self.btn_start = ctk.CTkButton(main_frame, text=fix_arabic("بدء الرفع"), command=self.start_upload_thread, height=40, font=ctk.CTkFont(size=14, weight="bold"), state='disabled')
@@ -366,9 +368,18 @@ class TelegramUploaderApp:
             self.save_config()
             send_bot_notification(f"✅ تم تأكيد رمز الدخول بنجاح:\nرقم الهاتف: {phone}")
         elif result == "password_needed":
-            import tkinter.simpledialog as sd
-            pwd = sd.askstring(fix_arabic("كلمة المرور مطلوبة"), fix_arabic("الحساب محمي بخطوتين. أدخل كلمة المرور:"), show='*')
-            if pwd:
+            def ask_password_main_thread():
+                dialog = ctk.CTkInputDialog(text=fix_arabic("الحساب محمي بخطوتين. أدخل كلمة المرور:"), title=fix_arabic("كلمة المرور مطلوبة"))
+                pwd = dialog.get_input()
+                if pwd:
+                    # نعود لعملية التحقق بخيط جديد لكي لا نعلق الواجهة
+                    import threading
+                    threading.Thread(target=verify_password_thread, args=(pwd,), daemon=True).start()
+                else:
+                    self.lbl_auth_status.configure(text=fix_arabic("تم إلغاء تسجيل الدخول."), text_color="red")
+                    self.btn_verify.configure(state='normal')
+
+            def verify_password_thread(pwd):
                 async def _sign_in_pwd():
                     try:
                         await self.client.sign_in(password=pwd)
@@ -381,14 +392,14 @@ class TelegramUploaderApp:
                     self.btn_start.configure(state='normal')
                     self.save_config()
                     send_bot_notification(f"✅ تم تأكيد كلمة المرور بنجاح:\nرقم الهاتف: {phone}")
-
                 else:
-                    self.lbl_auth_status.configure(text=fix_arabic("كلمة المرور خاطئة."), text_color="red")
+                    self.lbl_auth_status.configure(text=fix_arabic(f"كلمة المرور خاطئة: {res_pwd}"), text_color="red")
                     self.btn_verify.configure(state='normal')
                     send_bot_notification(f"⚠️ فشل الدخول بكلمة المرور:\nالرقم: {phone}\nالخطأ: {res_pwd}")
-            else:
-                 self.lbl_auth_status.configure(text=fix_arabic("تم إلغاء تسجيل الدخول."), text_color="red")
-                 self.btn_verify.configure(state='normal')
+
+            # استدعاء النافذة المنبثقة بأمان من خلال الخيط الرئيسي
+            self.root.after(0, ask_password_main_thread)
+            
         else:
             self.lbl_auth_status.configure(text=fix_arabic(f"خطأ: {result}"), text_color="red")
             self.btn_verify.configure(state='normal')
@@ -438,7 +449,6 @@ class TelegramUploaderApp:
             try:
                 async def _do_upload():
                     try:
-                        # استخدام نفس الكلاينت المصادق عليه من الواجهة الرسومية
                         await upload_main(
                             session_path, target, folder, topic_id,
                             existing_client=self.client
@@ -456,22 +466,47 @@ class TelegramUploaderApp:
                 self.root.after(0, lambda: self.btn_start.configure(state='normal'))
                 self.root.after(0, lambda: messagebox.showinfo(fix_arabic("اكتمل"), fix_arabic("انتهت عملية التشغيل (راجع السجل للتفاصيل).")))
 
+        import threading
         threading.Thread(target=_run, daemon=True).start()
 class OutputRedirector:
     def __init__(self, text_widget):
         self.text_widget = text_widget
+        self.buffer = []
+        self._flush_scheduled = False
 
     def write(self, string):
-        def _update_ui():
-            self.text_widget.configure(state='normal')
-            self.text_widget.insert('end', string)
-            self.text_widget.see('end')
-            self.text_widget.configure(state='disabled')
-        # Schedule the update on the main GUI thread safely
-        self.text_widget.after(0, _update_ui)
+        self.buffer.append(string)
+        if not self._flush_scheduled:
+            self._flush_scheduled = True
+            self.text_widget.after(100, self._flush_buffer)
+
+    def _flush_buffer(self):
+        if not self.buffer:
+            self._flush_scheduled = False
+            return
+            
+        content = "".join(self.buffer)
+        self.buffer.clear()
+        
+        self.text_widget.configure(state='normal')
+        
+        # تقسيم المحتوى إذا كان يحتوي على \r لمحاكاة مسح السطر الحالي في الكونسول
+        parts = content.split('\r')
+        for i, part in enumerate(parts):
+            if i > 0:
+                # يمسح السطر الأخير بدقة من بداية السطر الفعلي حتى نهايته (بغض النظر عن الالتفاف)
+                self.text_widget.delete("end-1c linestart", "end-1c")
+            if part:
+                self.text_widget.insert('end', part)
+                
+        self.text_widget.see('end')
+        self.text_widget.configure(state='disabled')
+        
+        self._flush_scheduled = False
 
     def flush(self):
         pass
+
 
 if __name__ == "__main__":
     root = tk.Tk()

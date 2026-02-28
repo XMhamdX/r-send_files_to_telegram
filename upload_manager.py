@@ -87,7 +87,7 @@ async def send_file_tele(client, entity, fpath, caption=None, file_category="vid
     print(f"🚀 بدء الرفع السريع (Parallel Upload): {os.path.basename(fpath)} ({file_size/1024/1024:.2f} MB) [{file_type}]")
     
     start = time.time()
-    last_print = start
+    last_print = 0 # Initialize to 0 so it prints immediately on the first pass
     
     def progress_cb(current, total):
         nonlocal last_print
